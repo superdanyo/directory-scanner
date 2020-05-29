@@ -11,6 +11,7 @@ import pandas as pd
 #       upper/lower?
 #       Wildcard im Pfad
 #       copy
+#       git test
 
 @click.command()
 @click.option('-p', '--path', default="", help='Verzeichnis, das durchsucht werden soll. Alles wird ausgegeben. Bsp: -p C:\\test')
