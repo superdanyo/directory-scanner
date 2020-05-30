@@ -18,9 +18,10 @@ import pandas as pd
 @click.option('-ed', '--emptydir', is_flag=True, help='Aktiviere nur die Ausgabe von leeren Verzeichnissen. Bsp: -ed')
 @click.option('-o', '--outputpath', default="", help='Ausgabe-Pfad für Ergebnis-Datei festlegen. Bsp: -o C:\\test')
 @click.option('-x', '--toexcel', is_flag=True, help='Excel-Datei aus Ausgabe-Format festlegen. Bsp: -o C:\\test -x')
+@click.option('-d', '--donefilespath', default="", help='Gibt schon bearbeitete Pfade nicht mehr aus, die in angegebener Liste stehen. Bsp: -d C:\\test\\liste.txt')
 @click.option('-c1', '--copystartfolder', default="", help='Pfad der die zu kopierenden Dokumente enthält. Bsp: -c1 C:\\test')
 @click.option('-c2', '--copytofolder', default="", help='Pfad in den die Dokumente kopiert werden sollen. Bsp: -c2 C:\\test')
-def main(path, extension, emptydir, outputpath, toexcel, copystartfolder, copytofolder):
+def main(path, extension, emptydir, outputpath, toexcel, donefilespath, copystartfolder, copytofolder):
     # COPY #############
     if(copystartfolder):
         copyfilesToCorrektFolder(copystartfolder, copytofolder)
@@ -33,8 +34,8 @@ def main(path, extension, emptydir, outputpath, toexcel, copystartfolder, copyto
     countElements = 0
 
     if not path:
-        #path = "/Users/superdanyo/Documents/Skripte/test"
-        path = os.path.join("C:", os.environ['HOMEPATH'], "Downloads")
+        path = "/Users/superdanyo/Documents/Skripte/test"
+        #path = os.path.join("C:", os.environ['HOMEPATH'], "Downloads")
 
     if not outputpath:
         outputpath = path
@@ -71,6 +72,11 @@ def main(path, extension, emptydir, outputpath, toexcel, copystartfolder, copyto
                     for itemLevel4 in level4:
                         level5 = folder_objects(itemLevel4, extension, emptydir)
                         listOfFiles.extend(level5)
+
+    # Schon bearbeitete Datei entfernen
+    if(donefilespath):
+        listOfFiles = deleteDoneFiles(listOfFiles, donefilespath)
+
     # TAG zuordnen
     if(extension != ""):
         tag = extension
@@ -121,7 +127,7 @@ def folder_objects(path, extension, emptydir, otype = "all"):
         #log.info("SKIP-DIR: " + path)
         return []
 
-def createOutputFile(outputpath, toexcel , listOfFiles, tag):
+def createOutputFile(outputpath, toexcel, listOfFiles, tag):
     filePath = ""
     countElements = len(listOfFiles)
     if(toexcel):
@@ -131,12 +137,18 @@ def createOutputFile(outputpath, toexcel , listOfFiles, tag):
         df.to_csv(filePath, sep=';', index=False, encoding ='utf8')
     else:        
         filePath = os.path.join(outputpath, "Directory-Scan-" + tag + ".txt")
-        f = open(filePath, "w", encoding='utf8')
-        #for i in range(10):
-        f.write('\n'.join(listOfFiles)) #.encode('utf8'))
-        f.close()
+        with open(filePath, "w", encoding='utf8') as f:
+            f.write('\n'.join(listOfFiles)) #.encode('utf8'))
 
     print("Anzahl: " + str(countElements) + " - Output-File created -> " + filePath)
+
+def deleteDoneFiles(listOfFiles, donefilespath):
+    with open(donefilespath) as f:
+        listOfDoneFiles = f.read().splitlines()
+        print(listOfDoneFiles)
+        print(listOfFiles)
+        return list(set(listOfFiles) - set(listOfDoneFiles))
+    return []
 
 def convertListOfFilesToDataFrame(listOfFiles, countElements):
     with Progress() as progress:
