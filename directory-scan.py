@@ -37,7 +37,7 @@ def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createco
         quit()
     
     # COPYSCRIPT #############
-    if(path, outputpath, createcopyscript):
+    if(createcopyscript):
         createCopyScript(path, outputpath, createcopyscript)
         quit()
     ####################    
