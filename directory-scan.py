@@ -23,7 +23,7 @@ import pandas as pd
 @click.option('-o', '--outputpath', default="", help='Ausgabe-Pfad für Ergebnis-Datei festlegen. Bsp: -o C:\\test')
 @click.option('-x', '--toexcel', is_flag=True, help='Excel-Datei aus Ausgabe-Format festlegen. Bsp: -o C:\\test -x')
 @click.option('-d', '--donefilespath', default="", help='Gibt schon bearbeitete Pfade nicht mehr aus, die in angegebener Liste stehen. Bsp: -d C:\\test\\liste.txt')
-@click.option('-ccs', '--createcopyscript', is_flag=True, help='Copy Skript wir beim setzten erzeugt. Bsp: -p C:\\test -ccs')
+@click.option('-ccs', '--createcopyscript', is_flag=True, help='Copy-Script wird beim setzen dieses Flags erzeugt. Bsp: -p C:\\test -o C:\\test -ccs')
 @click.option('-c1', '--copystartfolder', default="", help='Pfad der die zu kopierenden Dokumente enthält. Bsp: -c1 C:\\test')
 @click.option('-c2', '--copytofolder', default="", help='Pfad in den die Dokumente kopiert werden sollen. Bsp: -c2 C:\\test')
 def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createcopyscript, copystartfolder, copytofolder):
@@ -37,8 +37,8 @@ def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createco
         quit()
     
     # COPYSCRIPT #############
-    if(path, output, createcopyscript):
-        creatCopyScript(path, createcopyscript)
+    if(path, outputpath, createcopyscript):
+        createCopyScript(path, outputpath, createcopyscript)
         quit()
     ####################    
     # COPY #############
@@ -174,7 +174,7 @@ def convertListOfFilesToDataFrame(listOfFiles, countElements):
         return data
 
 # CREATE-COPY-SCRIPT ###################################################
-def createCopyScript(path, createcopyscript):
+def createCopyScript(path, outputpath, createcopyscript):
     print("geht noch nicht... was soll dein copy script nochmal können?")
 
 # COPY #################################################################
