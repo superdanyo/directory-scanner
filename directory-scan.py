@@ -156,11 +156,14 @@ def createOutputFile(outputpath, toexcel, listOfFiles, tag):
     print("Anzahl: " + str(countElements) + " - Output-File created -> " + filePath)
 
 def deleteDoneFiles(listOfFiles, donefilespath):
-    with open(donefilespath) as f:
+    with open(donefilespath, encoding='utf8') as f:
         listOfDoneFiles = f.read().splitlines()
-        print(listOfDoneFiles)
-        print(listOfFiles)
-        return list(set(listOfFiles) - set(listOfDoneFiles))
+        result = list(set(listOfFiles) - set(listOfDoneFiles))
+        #for path in listOfDoneFiles:
+        #    if path in listOfFiles:
+        #        listOfFiles.remove(path)
+        #print(listOfFiles)
+        return result
     return []
 
 def convertListOfFilesToDataFrame(listOfFiles, countElements):
