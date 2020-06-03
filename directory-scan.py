@@ -3,7 +3,7 @@ from shutil import copy2
 #import logging as log
 import click
 from rich.progress import Progress
-import time
+import datetime
 import pandas as pd
 
 # TODO: Rekursion bei der Hierarichie
@@ -11,6 +11,10 @@ import pandas as pd
 #       upper/lower?
 #       Wildcard im Pfad
 #       copy
+#       sftp
+#       copy string generieren
+#       access abhaken
+#       Zuweisung Datei-Kategorie
 
 @click.command()
 @click.option('-p', '--path', default="", help='Verzeichnis, das durchsucht werden soll. Alles wird ausgegeben. Bsp: -p C:\\test')
@@ -19,9 +23,24 @@ import pandas as pd
 @click.option('-o', '--outputpath', default="", help='Ausgabe-Pfad für Ergebnis-Datei festlegen. Bsp: -o C:\\test')
 @click.option('-x', '--toexcel', is_flag=True, help='Excel-Datei aus Ausgabe-Format festlegen. Bsp: -o C:\\test -x')
 @click.option('-d', '--donefilespath', default="", help='Gibt schon bearbeitete Pfade nicht mehr aus, die in angegebener Liste stehen. Bsp: -d C:\\test\\liste.txt')
+@click.option('-ccs', '--createcopyscript', is_flag=True, help='Copy Skript wir beim setzten erzeugt. Bsp: -p C:\\test -ccs')
 @click.option('-c1', '--copystartfolder', default="", help='Pfad der die zu kopierenden Dokumente enthält. Bsp: -c1 C:\\test')
 @click.option('-c2', '--copytofolder', default="", help='Pfad in den die Dokumente kopiert werden sollen. Bsp: -c2 C:\\test')
-def main(path, extension, emptydir, outputpath, toexcel, donefilespath, copystartfolder, copytofolder):
+def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createcopyscript, copystartfolder, copytofolder):
+    if not path:
+        #path = "/Users/superdanyo/Documents/Skripte/test"
+        path = os.path.join("C:", os.environ['HOMEPATH'], "Downloads")
+    if not outputpath:
+        outputpath = path
+    if not os.path.exists(path) or not os.path.exists(outputpath):
+        print("Ordner nicht gefunden...")
+        quit()
+    
+    # COPYSCRIPT #############
+    if(path, output, createcopyscript):
+        creatCopyScript(path, createcopyscript)
+        quit()
+    ####################    
     # COPY #############
     if(copystartfolder):
         copyfilesToCorrektFolder(copystartfolder, copytofolder)
@@ -32,17 +51,6 @@ def main(path, extension, emptydir, outputpath, toexcel, donefilespath, copystar
     listOfFiles = []
     tag = ""
     countElements = 0
-
-    if not path:
-        path = "/Users/superdanyo/Documents/Skripte/test"
-        #path = os.path.join("C:", os.environ['HOMEPATH'], "Downloads")
-
-    if not outputpath:
-        outputpath = path
-
-    if not os.path.exists(path) or not os.path.exists(outputpath):
-        print("Ordner nicht gefunden...")
-        quit()
     
     print("Scan started...")
 
@@ -129,14 +137,19 @@ def folder_objects(path, extension, emptydir, otype = "all"):
 
 def createOutputFile(outputpath, toexcel, listOfFiles, tag):
     filePath = ""
+    dateTime = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
     countElements = len(listOfFiles)
     if(toexcel):
-        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + ".csv")
+        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + "_" + dateTime + ".csv")
         data = convertListOfFilesToDataFrame(listOfFiles, countElements)
         df = pd.DataFrame(data=data)
-        df.to_csv(filePath, sep=';', index=False, encoding ='utf8')
+        try:
+            df.to_csv(filePath, sep=';', index=False, encoding='utf-8-sig')
+        except Exception as e:
+            print("")
+            print("Error during creating file: " + filePath)
     else:        
-        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + ".txt")
+        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + "_" + dateTime + ".txt")
         with open(filePath, "w", encoding='utf8') as f:
             f.write('\n'.join(listOfFiles)) #.encode('utf8'))
 
@@ -160,10 +173,14 @@ def convertListOfFilesToDataFrame(listOfFiles, countElements):
             data.append(splitedPathList)
         return data
 
+# CREATE-COPY-SCRIPT ###################################################
+def createCopyScript(path, createcopyscript):
+    print("geht noch nicht... was soll dein copy script nochmal können?")
+
 # COPY #################################################################
 def copyfilesToCorrektFolder(copystartfolder, copytofolder):
     if(1==1):
-        print("noch nicht fertig")
+        print("noch nicht fertig... müssen wir nochmal besprechen...")
     else:
         #TODO: Ordner prüfen exists
         filesInDir = os.listdir(copystartfolder)
