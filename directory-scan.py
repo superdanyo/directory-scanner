@@ -43,7 +43,7 @@ def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createco
     ####################    
     # COPY #############
     if(copystartfolder):
-        copyfilesToCorrektFolder(copystartfolder, copytofolder)
+        copyfilesToCorrektFolder(copystartfolder, copytofolder, extension)
         quit()
     ####################
 
@@ -181,29 +181,57 @@ def createCopyScript(path, outputpath, createcopyscript):
     print("geht noch nicht... was soll dein copy script nochmal können?")
 
 # COPY #################################################################
-def copyfilesToCorrektFolder(copystartfolder, copytofolder):
-    if(1==1):
+def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
+    if 1==1:
         print("noch nicht fertig... müssen wir nochmal besprechen...")
     else:
-        #TODO: Ordner prüfen exists
-        filesInDir = os.listdir(copystartfolder)
-        for f in filesInDir:
-            # finde Artikel Ordner
-            # finde korrektes Verzeichnis
-            # 
-            fileWithExt = os.path.basename(f)
-            fileWithoutExt = os.path.splitext(fileWithoutExt)[0]
-            fileExt = os.path.splitext(fileWithoutExt)[1]
-            if(fileExt == ".pdf"):
-                artikelFolder = os.path.join(copytofolder, fileWithExt)
-                if(os.dir.exists(artikelFolder)):
-                    newFile = os.file.exists(os.path.join(artikelFolder, fileWithExt))
-                    if(os.file.exists(newFile)):
-                        print(newFile + " gibts in dem Ordner schon...")
+        if os.dir.exists(copystartfolder):
+            try:
+                fromShortcut = os.path.dirname(copystartfolder)[:2]
+                toShortcut = os.path.dirname(copystartfolder)[6:8]
+            except Exception as e:
+                print("Abkürzung im Ordnernamen fehlerhaft...")
+                quit()
+            filesInDir = os.listdir(copystartfolder)
+            for f in filesInDir:
+                # finde Artikel Ordner
+                # finde korrektes Verzeichnis
+                # 
+                fileWithExt = os.path.basename(f)
+                fileWithoutExt = os.path.splitext(fileWithExt)[0]
+                fileExt = os.path.splitext(fileWithExt)[1]
+                artikelFolderName = fileWithoutExt.split('_')[0]
+                #if(fileExt == extension):
+                artikelFolderPath = os.path.join(copytofolder, artikelFolderName)
+                if os.dir.exists(artikelFolderPath):
+                    newFileName = renameFileShortcut(fileWithExt, fromShortcut, toShortcut)
+                    if newFileName:
+                        newFilePath = getNewFilePath(artikelFolderPath, newFileName, toShortcut)
+                        if os.file.exists(newFilePath):
+                            print(newFilePath + " gibts in dem Ordner schon...")
+                        else:
+                            copy2(f, newFilePath)
                     else:
-                        copy2(f, os.path.join(copytofolder, fileWithExt))
+                        print("Abkürzungen nicht freigegeben: " + fromShortcut + " - " + toShortcut)
                 else:
-                    print(artikelFolder + " existiert nicht...")
+                    print(artikelFolderPath + " existiert nicht...")
+        else:
+            print(copystartfolder + " existiert nicht...")
+    
+def renameFileShortcut(fileName, fromShortcut, toShortcut):
+    whitelist = ['bs','bk','bw']
+    if fromShortcut in whitelist and toShortcut in whitelist:
+        return fileName = fileWithExt.replace(fromShortcut, toShortcut)
+    else:
+        return ""
+
+def getNewFilePath(artikelFolderPath, newFileName, toShortcut):
+    targetFolder = ""
+    if toShortcut == "bs":
+        targetFolder = os.path.join(artikelFolderPath, "Produkt").join("Datenblatt")
+    elif toShortcut == "bw":
+        targetFolder = os.path.join(artikelFolderPath, "???").join("???")
+    return os.path.join(targetFolder, newFileName)
 
 if __name__ == '__main__':
     main()
