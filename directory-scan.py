@@ -1,20 +1,22 @@
 import os
 from shutil import copy2
-#import logging as log
+import logging as log
 import click
 from rich.progress import Progress
 import datetime
 import pandas as pd
+import pyodbc
 
 # TODO: Rekursion bei der Hierarichie
 #       Level einstellbar?
-#       upper/lower?
+#       upper und trim pfad
 #       Wildcard im Pfad
 #       copy
 #       sftp
 #       copy string generieren
 #       access abhaken
 #       Zuweisung Datei-Kategorie
+#       Umbenennung mit Datum
 
 @click.command()
 @click.option('-p', '--path', default="", help='Verzeichnis, das durchsucht werden soll. Alles wird ausgegeben. Bsp: -p C:\\test')
@@ -47,7 +49,7 @@ def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createco
         quit()
     ####################
 
-    #log.basicConfig(level=log.INFO)
+    log.basicConfig(level=log.INFO)
     listOfFiles = []
     tag = ""
     countElements = 0
@@ -182,6 +184,7 @@ def createCopyScript(path, outputpath, createcopyscript):
 
 # COPY #################################################################
 def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
+    log.basicConfig(filename=os.path.join(copystartfolder, 'copy.log'), filemode='w', level=log.INFO)
     if 1==1:
         print("noch nicht fertig... müssen wir nochmal besprechen...")
     else:
@@ -208,13 +211,14 @@ def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
                     if newFileName:
                         newFilePath = getNewFilePath(artikelFolderPath, newFileName, toShortcut)
                         if os.file.exists(newFilePath):
-                            print(newFilePath + " gibts in dem Ordner schon...")
+                            log.warning(newFilePath + " gibts in dem Ordner schon...")
                         else:
                             copy2(f, newFilePath)
+                            log.info(f + " kopiert nach " newFilePath)
                     else:
                         print("Abkürzungen nicht freigegeben: " + fromShortcut + " - " + toShortcut)
                 else:
-                    print(artikelFolderPath + " existiert nicht...")
+                    log.warning(artikelFolderPath + " existiert nicht...")
         else:
             print(copystartfolder + " existiert nicht...")
     
@@ -228,10 +232,43 @@ def renameFileShortcut(fileName, fromShortcut, toShortcut):
 def getNewFilePath(artikelFolderPath, newFileName, toShortcut):
     targetFolder = ""
     if toShortcut == "bs":
-        targetFolder = os.path.join(artikelFolderPath, "Produkt").join("Datenblatt")
+        targetFolder = os.path.join(artikelFolderPath, "Bilder").join("Shop")
     elif toShortcut == "bw":
-        targetFolder = os.path.join(artikelFolderPath, "???").join("???")
+        targetFolder = os.path.join(artikelFolderPath, "Bilder").join("Warenwirtschaft")
     return os.path.join(targetFolder, newFileName)
+
+def connectToAccess(accessFile, user='admin', password = '', old_driver=False):
+    driver_ver = '*.mdb'
+    if not old_driver:
+        driver_ver += ', *.accdb'
+
+    odbc_conn_str = ('DRIVER={Microsoft Access Driver (%s)}'
+                     ';DBQ=%s;UID=%s;PWD=%s' %
+                     (driver_ver, accessFile, user, password))
+
+    return pyodbc.connect(odbc_conn_str)
+
+def getListAndCheckEntrysInAccess(itemsFile, accessFile):
+    folderName = os.path.dirname(accessFile)
+    log.basicConfig(filename=os.path.join(folderName, 'access.log'), filemode='w', level=log.INFO)
+    with open(itemsFile, encoding='utf8') as f:
+        listOfItems = f.read().splitlines()   
+        fileName = os.path.basename(itemsFile).split('_')
+        columnName = fileName[0]
+        checkedContent = fileName[1]
+        for itemName in listOfItems:
+            try:            
+                # TODO: Access vorhanden und zugreifbar?
+                conn = connectToAccess(accessFile)  # only absolute paths!
+                cursor = conn.cursor()
+                cursor.execute('UPDATE artikel SET ' + columnName + ' = ' + checkedContent + WHERE Artikel = "' + itemName + '"')
+                conn.commit()
+                conn.close()
+                log.info("Artikel: " + itemName + " in Spalte: " + columnName + " abgehakt")
+            except Exception as e:
+                conn.rollback()
+                conn.close()
+                log.error("Fehler bei Arktiel: " + itemName)
 
 if __name__ == '__main__':
     main()
