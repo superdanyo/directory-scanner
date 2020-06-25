@@ -1,17 +1,23 @@
 import os
 from shutil import copy2
-#import logging as log
+import logging as log
 import click
 from rich.progress import Progress
-import time
+import datetime
 import pandas as pd
+import pyodbc
+import pysftp
 
 # TODO: Rekursion bei der Hierarichie
 #       Level einstellbar?
-#       upper/lower?
+#       upper und trim pfad
 #       Wildcard im Pfad
 #       copy
-#       git merge test
+#       sftp
+#       copy string generieren
+#       access abhaken
+#       Zuweisung Datei-Kategorie
+#       Umbenennung mit Datum
 
 @click.command()
 @click.option('-p', '--path', default="", help='Verzeichnis, das durchsucht werden soll. Alles wird ausgegeben. Bsp: -p C:\\test')
@@ -19,30 +25,49 @@ import pandas as pd
 @click.option('-ed', '--emptydir', is_flag=True, help='Aktiviere nur die Ausgabe von leeren Verzeichnissen. Bsp: -ed')
 @click.option('-o', '--outputpath', default="", help='Ausgabe-Pfad für Ergebnis-Datei festlegen. Bsp: -o C:\\test')
 @click.option('-x', '--toexcel', is_flag=True, help='Excel-Datei aus Ausgabe-Format festlegen. Bsp: -o C:\\test -x')
+@click.option('-d', '--donefilespath', default="", help='Gibt schon bearbeitete Pfade nicht mehr aus, die in angegebener Liste stehen. Bsp: -d C:\\test\\liste.txt')
+@click.option('-ccs', '--createcopyscript', is_flag=True, help='Copy-Script wird beim setzen dieses Flags erzeugt. Bsp: -p C:\\test -o C:\\test -ccs')
 @click.option('-c1', '--copystartfolder', default="", help='Pfad der die zu kopierenden Dokumente enthält. Bsp: -c1 C:\\test')
 @click.option('-c2', '--copytofolder', default="", help='Pfad in den die Dokumente kopiert werden sollen. Bsp: -c2 C:\\test')
-def main(path, extension, emptydir, outputpath, toexcel, copystartfolder, copytofolder):
-    # COPY #############
-    if(copystartfolder):
-        copyfilesToCorrektFolder(copystartfolder, copytofolder)
-        quit()
-    ####################
-
-    #log.basicConfig(level=log.INFO)
-    listOfFiles = []
-    tag = ""
-    countElements = 0
-
+@click.option('-acc', '--access',  default="", help='Artikel in Access-Datei durch Artikel-Liste abhaken. Bsp: -p C:\\test\\Bilder-Shop_erledigt.txt -acc C:\\test\\access.accdb')
+@click.option('-sftp', '--sftphost', default="", help='Hier muss der SFTP-Host angegeben werden. Bsp: -sftp markus.de -u test -pass 123456')
+@click.option('-u', '--user', default="", help='Hier muss der Bentzer angegeben werden. Bsp: -sftp markus.de -u test -pass 123456')
+@click.option('-pass', '--password', default="", help='Hier muss das Passwort angegeben werden. Bsp: -sftp markus.de -u test -pass 123456')
+def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createcopyscript, copystartfolder, copytofolder, access, sftphost, user, password):
     if not path:
         #path = "/Users/superdanyo/Documents/Skripte/test"
         path = os.path.join("C:", os.environ['HOMEPATH'], "Downloads")
-
     if not outputpath:
         outputpath = path
-
     if not os.path.exists(path) or not os.path.exists(outputpath):
         print("Ordner nicht gefunden...")
         quit()
+    
+    # COPYSCRIPT #############
+    if(createcopyscript):
+        createCopyScript(path, outputpath, createcopyscript)
+        quit()
+    ####################    
+    # COPY #############
+    if(copystartfolder):
+        copyfilesToCorrektFolder(copystartfolder, copytofolder, extension)
+        quit()
+    ####################
+    # ACCESS #############
+    if(access):
+        getListAndCheckEntrysInAccess(path, access)
+        quit()
+    ####################
+    # ACCESS #############
+    if(sftphost):
+        syncSFTP(sftphost, user, password)
+        quit()
+    #################### 
+
+    log.basicConfig(level=log.INFO)
+    listOfFiles = []
+    tag = ""
+    countElements = 0
     
     print("Scan started...")
 
@@ -72,6 +97,11 @@ def main(path, extension, emptydir, outputpath, toexcel, copystartfolder, copyto
                     for itemLevel4 in level4:
                         level5 = folder_objects(itemLevel4, extension, emptydir)
                         listOfFiles.extend(level5)
+
+    # Schon bearbeitete Datei entfernen
+    if(donefilespath):
+        listOfFiles = deleteDoneFiles(listOfFiles, donefilespath)
+
     # TAG zuordnen
     if(extension != ""):
         tag = extension
@@ -122,22 +152,36 @@ def folder_objects(path, extension, emptydir, otype = "all"):
         #log.info("SKIP-DIR: " + path)
         return []
 
-def createOutputFile(outputpath, toexcel , listOfFiles, tag):
+def createOutputFile(outputpath, toexcel, listOfFiles, tag):
     filePath = ""
+    dateTime = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M")
     countElements = len(listOfFiles)
     if(toexcel):
-        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + ".csv")
+        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + "_" + dateTime + ".csv")
         data = convertListOfFilesToDataFrame(listOfFiles, countElements)
         df = pd.DataFrame(data=data)
-        df.to_csv(filePath, sep=';', index=False, encoding ='utf8')
+        try:
+            df.to_csv(filePath, sep=';', index=False, encoding='utf-8-sig')
+        except Exception as e:
+            print("")
+            print("Error during creating file: " + filePath)
     else:        
-        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + ".txt")
-        f = open(filePath, "w", encoding='utf8')
-        #for i in range(10):
-        f.write('\n'.join(listOfFiles)) #.encode('utf8'))
-        f.close()
+        filePath = os.path.join(outputpath, "Directory-Scan-" + tag + "_" + dateTime + ".txt")
+        with open(filePath, "w", encoding='utf8') as f:
+            f.write('\n'.join(listOfFiles)) #.encode('utf8'))
 
     print("Anzahl: " + str(countElements) + " - Output-File created -> " + filePath)
+
+def deleteDoneFiles(listOfFiles, donefilespath):
+    with open(donefilespath, encoding='utf8') as f:
+        listOfDoneFiles = f.read().splitlines()
+        result = list(set(listOfFiles) - set(listOfDoneFiles))
+        #for path in listOfDoneFiles:
+        #    if path in listOfFiles:
+        #        listOfFiles.remove(path)
+        #print(listOfFiles)
+        return result
+    return []
 
 def convertListOfFilesToDataFrame(listOfFiles, countElements):
     with Progress() as progress:
@@ -149,30 +193,134 @@ def convertListOfFilesToDataFrame(listOfFiles, countElements):
             data.append(splitedPathList)
         return data
 
+# CREATE-COPY-SCRIPT ###################################################
+def createCopyScript(path, outputpath, createcopyscript):
+    print("geht noch nicht... was soll dein copy script nochmal können?")
+
 # COPY #################################################################
-def copyfilesToCorrektFolder(copystartfolder, copytofolder):
-    if(1==1):
-        print("noch nicht fertig")
-    else:
-        #TODO: Ordner prüfen exists
+def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
+    log.basicConfig(filename=os.path.join(copystartfolder, 'copy.log'), filemode='w', level=log.INFO)
+    if os.path.isdir(copystartfolder):
+        try:
+            fromShortcut = os.path.basename(copystartfolder)[:2]
+            toShortcut = os.path.basename(copystartfolder)[6:8]
+            print(fromShortcut, "< zu >",toShortcut)
+        except Exception as e:
+            print("Abkürzung im Ordnernamen fehlerhaft...")
+            quit()
         filesInDir = os.listdir(copystartfolder)
         for f in filesInDir:
             # finde Artikel Ordner
             # finde korrektes Verzeichnis
             # 
             fileWithExt = os.path.basename(f)
-            fileWithoutExt = os.path.splitext(fileWithoutExt)[0]
-            fileExt = os.path.splitext(fileWithoutExt)[1]
-            if(fileExt == ".pdf"):
-                artikelFolder = os.path.join(copytofolder, fileWithExt)
-                if(os.dir.exists(artikelFolder)):
-                    newFile = os.file.exists(os.path.join(artikelFolder, fileWithExt))
-                    if(os.file.exists(newFile)):
-                        print(newFile + " gibts in dem Ordner schon...")
+            print(fileWithExt)
+            # TODO: Aufbau Datei!
+            fileWithoutExt = os.path.splitext(fileWithExt)[0]
+            fileExt = os.path.splitext(fileWithExt)[1]
+            artikelFolderName = fileWithoutExt.split('_')[0]
+            print("artikelFolderName:", artikelFolderName)        
+            #if(fileExt == extension):
+            artikelFolderPath = os.path.join(copytofolder, artikelFolderName)
+            print("artikelFolderPath:", artikelFolderPath)
+            if os.path.isdir(artikelFolderPath):
+                newFileName = renameFileShortcut(fileWithExt, fromShortcut, toShortcut)
+                print("newFileName:", newFileName)
+                if newFileName:
+                    newFilePath = getNewFilePath(artikelFolderPath, newFileName, toShortcut)
+                    print("newFilePath", newFilePath)
+                    if os.path.exists(newFilePath):
+                        log.warning(newFilePath + " gibts in dem Ordner schon...")
                     else:
-                        copy2(f, os.path.join(copytofolder, fileWithExt))
+                        print(f, newFilePath)
+                        copy2(os.path.join(copystartfolder, f), newFilePath)
+                        log.info(f + " kopiert nach " + newFilePath)
                 else:
-                    print(artikelFolder + " existiert nicht...")
+                    print("Abkürzungen nicht freigegeben: " + fromShortcut + " - " + toShortcut)
+            else:
+                log.warning(artikelFolderPath + " existiert nicht...")
+    else:
+        print(copystartfolder + " existiert nicht...")
+    
+def renameFileShortcut(fileName, fromShortcut, toShortcut):
+    whitelist = ['bs','bk','bw']
+    if fromShortcut in whitelist and toShortcut in whitelist:
+        print("rename:", fileName)
+        return fileName.replace("_" + fromShortcut, "_" + toShortcut)
+    else:
+        return ""
+
+def getNewFilePath(artikelFolderPath, newFileName, toShortcut):
+    targetFolder = ""
+    if toShortcut == "bs":
+        targetFolder = os.path.join(artikelFolderPath, "Bilder", "Shop")
+    elif toShortcut == "bw":
+        targetFolder = os.path.join(artikelFolderPath, "Bilder", "Warenwirtschaft")
+    return os.path.join(targetFolder, newFileName)
+
+def connectToAccess(accessFile, user='admin', password = ''):
+    odbc_conn_str = ('Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=' + accessFile + ';')
+    print(odbc_conn_str)
+    return pyodbc.connect(odbc_conn_str)
+
+def getListAndCheckEntrysInAccess(itemsFile, accessFile):
+    folderName = os.path.dirname(accessFile)
+    log.basicConfig(filename=os.path.join(folderName, 'access.log'), filemode='w', level=log.INFO)
+    with open(itemsFile, encoding='utf8') as f:
+        listOfItems = f.read().splitlines()   
+        fileName = os.path.basename(itemsFile).split('_')
+        columnName = fileName[0]
+        checkedContent = fileName[1].split(".")[0]
+        for itemName in listOfItems:
+            try:            
+                # TODO: Access vorhanden und zugreifbar?
+                print(accessFile)
+                print(pyodbc.dataSources())
+                conn = connectToAccess(accessFile)  # only absolute paths!
+                cursor = conn.cursor()
+                sqlString = "UPDATE tbl_artikel SET [" + columnName + "] = '" + checkedContent + "' WHERE [Artikel] = '" + itemName + "';"
+                print(sqlString)
+                cursor.execute(sqlString)
+                conn.commit()
+                conn.close()
+                log.info("Artikel: " + itemName + " in Spalte: " + columnName + " abgehakt")
+            except Exception as e:
+                #conn.rollback()
+                #conn.close()
+                log.error("Fehler bei Arktiel:", itemName, e)
+
+def syncSFTP(sftphost, user, password):
+
+    myHostname = "yourserverdomainorip.com"
+    myUsername = "root"
+    myPassword = "12345"
+
+    with pysftp.Connection(host=myHostname, username=myUsername, password=myPassword) as sftp:
+        print "Connection succesfully stablished ... "
+
+        # LIST ############################
+        # Switch to a remote directory
+        sftp.cwd('/var/www/vhosts/')
+
+        # Obtain structure of the remote directory '/var/www/vhosts'
+        directory_structure = sftp.listdir_attr()
+
+        # Print data
+        for attr in directory_structure:
+            print attr.filename, attr
+
+        # UPLOAD ##########################
+        # Define the file that you want to upload from your local directorty
+        # or absolute "C:\Users\sdkca\Desktop\TUTORIAL2.txt"
+        localFilePath = './TUTORIAL2.txt'
+
+        # Define the remote path where the file will be uploaded
+        remoteFilePath = '/var/integraweb-db-backups/TUTORIAL2.txt'
+
+        sftp.put(localFilePath, remoteFilePath)
+
+        # Define the file that you want to upload from your local directorty
+        sftp.remove('/var/custom-folder/TUTORIAL2.txt')
 
 if __name__ == '__main__':
     main()
