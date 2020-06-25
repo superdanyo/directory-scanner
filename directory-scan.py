@@ -58,7 +58,7 @@ def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createco
         getListAndCheckEntrysInAccess(path, access)
         quit()
     ####################
-    # ACCESS #############
+    # SFTP #############
     if(sftphost):
         syncSFTP(sftphost, user, password)
         quit()
@@ -296,7 +296,7 @@ def syncSFTP(sftphost, user, password):
     myPassword = "12345"
 
     with pysftp.Connection(host=myHostname, username=myUsername, password=myPassword) as sftp:
-        print "Connection succesfully stablished ... "
+        print("Connection succesfully stablished ... ")
 
         # LIST ############################
         # Switch to a remote directory
@@ -307,7 +307,7 @@ def syncSFTP(sftphost, user, password):
 
         # Print data
         for attr in directory_structure:
-            print attr.filename, attr
+            print(attr.filename, attr)
 
         # UPLOAD ##########################
         # Define the file that you want to upload from your local directorty
