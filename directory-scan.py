@@ -12,12 +12,12 @@ import pysftp
 #       Level einstellbar?
 #       upper und trim pfad
 #       Wildcard im Pfad
-#       copy
-#       sftp
+#       copy -> JPEG-Pfad, Blacklist Ausgabe
+#       sftp / sync
 #       copy string generieren
-#       access abhaken
 #       Zuweisung Datei-Kategorie
 #       Umbenennung mit Datum
+#       Access -> alle Spalten
 
 @click.command()
 @click.option('-p', '--path', default="", help='Verzeichnis, das durchsucht werden soll. Alles wird ausgegeben. Bsp: -p C:\\test')
@@ -202,9 +202,20 @@ def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
     log.basicConfig(filename=os.path.join(copystartfolder, 'copy.log'), filemode='w', level=log.INFO)
     if os.path.isdir(copystartfolder):
         try:
-            fromShortcut = os.path.basename(copystartfolder)[:2]
-            toShortcut = os.path.basename(copystartfolder)[6:8]
-            print(fromShortcut, "< zu >",toShortcut)
+            #TODO: Abfrage nach Output_Shop oder Output_Warenwirtschaft / JPEG-Ordner vorhanden?
+            fromShortcut = 'bk' #os.path.basename(copystartfolder)[:2]
+            toShortcutSplittedPathList = os.path.dirname(copystartfolder).split(os.path.sep)
+            toShortcutSplittedPathListElement = toShortcutSplittedPathList[-1]
+            print(toShortcutSplittedPathList)
+            print(toShortcutSplittedPathListElement)
+            if toShortcutSplittedPathListElement =='Output_Shop':
+                toShortcut = 'bs'  #os.path.basename(copystartfolder)[6:8]
+            elif toShortcutSplittedPathListElement == 'Output_Warenwirtschaft':
+                toShortcut = 'bw'
+            else:
+                toShortcut = ''
+
+            print(fromShortcut, "< zu >", toShortcut)
         except Exception as e:
             print("Abkürzung im Ordnernamen fehlerhaft...")
             quit()
@@ -216,9 +227,11 @@ def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
             fileWithExt = os.path.basename(f)
             print(fileWithExt)
             # TODO: Aufbau Datei!
+            # TODO: Hier müssen auf _ mitgenommen werden
             fileWithoutExt = os.path.splitext(fileWithExt)[0]
+            print(fileWithoutExt)
             fileExt = os.path.splitext(fileWithExt)[1]
-            artikelFolderName = fileWithoutExt.split('_')[0]
+            artikelFolderName = fileWithoutExt[:-3]
             print("artikelFolderName:", artikelFolderName)        
             #if(fileExt == extension):
             artikelFolderPath = os.path.join(copytofolder, artikelFolderName)
@@ -300,27 +313,32 @@ def syncSFTP(sftphost, user, password):
 
         # LIST ############################
         # Switch to a remote directory
-        sftp.cwd('/var/www/vhosts/')
+        sftp.cwd('/media/userspace/pps_produktinfo')
 
         # Obtain structure of the remote directory '/var/www/vhosts'
         directory_structure = sftp.listdir_attr()
 
         # Print data
-        for attr in directory_structure:
-            print(attr.filename, attr)
+        #for attr in directory_structure:
+        #    print(attr.filename, attr)
 
+        #for durch alle Ordner
+
+        # Produkte  -> Artikelnummer/Bilder/Shop
+        #           -> Artikelnummer/Datenblaetter/*
+        
         # UPLOAD ##########################
         # Define the file that you want to upload from your local directorty
         # or absolute "C:\Users\sdkca\Desktop\TUTORIAL2.txt"
         localFilePath = './TUTORIAL2.txt'
 
         # Define the remote path where the file will be uploaded
-        remoteFilePath = '/var/integraweb-db-backups/TUTORIAL2.txt'
+        remoteFilePath = './TUTORIAL2.txt'
 
         sftp.put(localFilePath, remoteFilePath)
 
         # Define the file that you want to upload from your local directorty
-        sftp.remove('/var/custom-folder/TUTORIAL2.txt')
+        #sftp.remove('/var/custom-folder/TUTORIAL2.txt')
 
 if __name__ == '__main__':
     main()
