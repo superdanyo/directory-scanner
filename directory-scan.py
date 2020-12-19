@@ -5,17 +5,15 @@ import click
 from rich.progress import Progress
 import datetime
 import pandas as pd
-import pyodbc
+#import pyodbc
 import pysftp
+import socket
 
 # TODO: Rekursion bei der Hierarichie
 #       Level einstellbar?
 #       upper und trim pfad
-#       Wildcard im Pfad
 #       copy -> JPEG-Pfad, Blacklist Ausgabe
-#       sftp / sync
 #       copy string generieren
-#       Zuweisung Datei-Kategorie
 #       Umbenennung mit Datum
 #       Access -> alle Spalten
 
@@ -30,13 +28,13 @@ import pysftp
 @click.option('-c1', '--copystartfolder', default="", help='Pfad der die zu kopierenden Dokumente enthält. Bsp: -c1 C:\\test')
 @click.option('-c2', '--copytofolder', default="", help='Pfad in den die Dokumente kopiert werden sollen. Bsp: -c2 C:\\test')
 @click.option('-acc', '--access',  default="", help='Artikel in Access-Datei durch Artikel-Liste abhaken. Bsp: -p C:\\test\\Bilder-Shop_erledigt.txt -acc C:\\test\\access.accdb')
-@click.option('-sftp', '--sftphost', default="", help='Hier muss der SFTP-Host angegeben werden. Bsp: -sftp markus.de -u test -pass 123456')
+@click.option('-sftp', '--sftphost', default="", help='Hier muss der SFTP-Host angegeben werden. Bsp: -sftp markus.de -u test -pass 123456 -path')
 @click.option('-u', '--user', default="", help='Hier muss der Bentzer angegeben werden. Bsp: -sftp markus.de -u test -pass 123456')
 @click.option('-pass', '--password', default="", help='Hier muss das Passwort angegeben werden. Bsp: -sftp markus.de -u test -pass 123456')
 def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createcopyscript, copystartfolder, copytofolder, access, sftphost, user, password):
     if not path:
-        #path = "/Users/superdanyo/Documents/Skripte/test"
-        path = os.path.join("C:", os.environ['HOMEPATH'], "Downloads")
+        path = "/Users/superdanyo/Documents/Skripte/test"
+        #path = os.path.join("C:", os.environ['HOMEPATH'], "Downloads")
     if not outputpath:
         outputpath = path
     if not os.path.exists(path) or not os.path.exists(outputpath):
@@ -62,7 +60,7 @@ def main(path, extension, emptydir, outputpath, toexcel, donefilespath, createco
     if(sftphost):
         syncSFTP(sftphost, user, password)
         quit()
-    #################### 
+    ####################
 
     log.basicConfig(level=log.INFO)
     listOfFiles = []
@@ -227,7 +225,7 @@ def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
             fileWithExt = os.path.basename(f)
             print(fileWithExt)
             # TODO: Aufbau Datei!
-            # TODO: Hier müssen auf _ mitgenommen werden
+            # TODO: Hier müssen auch _ mitgenommen werden
             fileWithoutExt = os.path.splitext(fileWithExt)[0]
             print(fileWithoutExt)
             fileExt = os.path.splitext(fileWithExt)[1]
@@ -254,6 +252,8 @@ def copyfilesToCorrektFolder(copystartfolder, copytofolder, extension):
                 log.warning(artikelFolderPath + " existiert nicht...")
     else:
         print(copystartfolder + " existiert nicht...")
+
+        #TODO: Blacklist erstellen
     
 def renameFileShortcut(fileName, fromShortcut, toShortcut):
     whitelist = ['bs','bk','bw']
@@ -271,74 +271,78 @@ def getNewFilePath(artikelFolderPath, newFileName, toShortcut):
         targetFolder = os.path.join(artikelFolderPath, "Bilder", "Warenwirtschaft")
     return os.path.join(targetFolder, newFileName)
 
-def connectToAccess(accessFile, user='admin', password = ''):
-    odbc_conn_str = ('Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=' + accessFile + ';')
-    print(odbc_conn_str)
-    return pyodbc.connect(odbc_conn_str)
+# def connectToAccess(accessFile, user='admin', password = ''):
+#     odbc_conn_str = ('Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=' + accessFile + ';')
+#     print(odbc_conn_str)
+#     return pyodbc.connect(odbc_conn_str)
 
-def getListAndCheckEntrysInAccess(itemsFile, accessFile):
-    folderName = os.path.dirname(accessFile)
-    log.basicConfig(filename=os.path.join(folderName, 'access.log'), filemode='w', level=log.INFO)
-    with open(itemsFile, encoding='utf8') as f:
-        listOfItems = f.read().splitlines()   
-        fileName = os.path.basename(itemsFile).split('_')
-        columnName = fileName[0]
-        checkedContent = fileName[1].split(".")[0]
-        for itemName in listOfItems:
-            try:            
-                # TODO: Access vorhanden und zugreifbar?
-                print(accessFile)
-                print(pyodbc.dataSources())
-                conn = connectToAccess(accessFile)  # only absolute paths!
-                cursor = conn.cursor()
-                sqlString = "UPDATE tbl_artikel SET [" + columnName + "] = '" + checkedContent + "' WHERE [Artikel] = '" + itemName + "';"
-                print(sqlString)
-                cursor.execute(sqlString)
-                conn.commit()
-                conn.close()
-                log.info("Artikel: " + itemName + " in Spalte: " + columnName + " abgehakt")
-            except Exception as e:
-                #conn.rollback()
-                #conn.close()
-                log.error("Fehler bei Arktiel:", itemName, e)
+# def getListAndCheckEntrysInAccess(itemsFile, accessFile):
+#     folderName = os.path.dirname(accessFile)
+#     log.basicConfig(filename=os.path.join(folderName, 'access.log'), filemode='w', level=log.INFO)
+#     with open(itemsFile, encoding='utf8') as f:
+#         listOfItems = f.read().splitlines()   
+#         fileName = os.path.basename(itemsFile).split('_')
+#         TODO: Drei feste Spaltennamen
+#         columnName = fileName[0]
+#         checkedContent = fileName[1].split(".")[0]
+#         for itemName in listOfItems:
+#             try:            
+#                 # TODO: Access vorhanden und zugreifbar?
+#                 print(accessFile)
+#                 print(pyodbc.dataSources())
+#                 conn = connectToAccess(accessFile)  # only absolute paths!
+#                 cursor = conn.cursor()
+#                 sqlString = "UPDATE tbl_artikel SET [" + columnName + "] = '" + checkedContent + "' WHERE [Artikel] = '" + itemName + "';"
+#                 print(sqlString)
+#                 cursor.execute(sqlString)
+#                 conn.commit()
+#                 conn.close()
+#                 log.info("Artikel: " + itemName + " in Spalte: " + columnName + " abgehakt")
+#             except Exception as e:
+#                 #conn.rollback()
+#                 #conn.close()
+#                 log.error("Fehler bei Arktiel:", itemName, e)
 
-def syncSFTP(sftphost, user, password):
-
-    myHostname = "yourserverdomainorip.com"
-    myUsername = "root"
-    myPassword = "12345"
-
-    with pysftp.Connection(host=myHostname, username=myUsername, password=myPassword) as sftp:
+def syncSFTP(sftphost, user, passworde, path):
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None   
+    with pysftp.Connection(host=sftphost, username=user, password=password, port=22, cnopts=cnopts) as sftp:
         print("Connection succesfully stablished ... ")
-
+ 
         # LIST ############################
         # Switch to a remote directory
         sftp.cwd('/media/userspace/pps_produktinfo')
-
+        #sftp.cwd('/')
+ 
         # Obtain structure of the remote directory '/var/www/vhosts'
         directory_structure = sftp.listdir_attr()
-
+ 
         # Print data
-        #for attr in directory_structure:
-        #    print(attr.filename, attr)
+        for attr in directory_structure:
+            print(attr.filename, attr)
+ 
+        folderList = os.listdir(path)
 
-        #for durch alle Ordner
-
-        # Produkte  -> Artikelnummer/Bilder/Shop
-        #           -> Artikelnummer/Datenblaetter/*
-        
-        # UPLOAD ##########################
-        # Define the file that you want to upload from your local directorty
-        # or absolute "C:\Users\sdkca\Desktop\TUTORIAL2.txt"
-        localFilePath = './TUTORIAL2.txt'
-
-        # Define the remote path where the file will be uploaded
-        remoteFilePath = './TUTORIAL2.txt'
-
-        sftp.put(localFilePath, remoteFilePath)
-
-        # Define the file that you want to upload from your local directorty
-        #sftp.remove('/var/custom-folder/TUTORIAL2.txt')
+        for artikelFolder in folderList:
+ 
+            # Produkte  -> Artikelnummer/Bilder/Shop
+            #           -> Artikelnummer/Datenblaetter/*
+            
+            # UPLOAD ##########################
+            # Define the file that you want to upload from your local directorty
+            # or absolute "C:\Users\sdkca\Desktop\TUTORIAL2.txt"
+            localFilePath1 = os.path.join(path, artikelFolder, "Bilder", "Shop")
+            localFilePath2 = os.path.join(path, artikelFolder, "Datenblaetter")
+    
+            # Define the remote path where the file will be uploaded
+            remoteFilePath1 = os.path.join(artikelFolder, "Bilder", "Shop")
+            remoteFilePath2 = os.path.join(artikelFolder, "Datenblaetter")
+    
+            sftp.put_d(localFilePath1, remoteFilePath1)
+            sftp.put_d(localFilePath2, remoteFilePath2)
+    
+            # Define the file that you want to upload from your local directorty
+            #sftp.remove('/var/custom-folder/TUTORIAL2.txt')
 
 if __name__ == '__main__':
     main()
